@@ -13,14 +13,17 @@ get_timestamp() ->
 create() ->
   If_exists=ets:info(cache),
   if
-    If_exists==undefined -> cache=ets:new(cache,[public,{keypos, #cacheItem.key},named_table]);
+    If_exists==undefined -> cache=ets:new(cache,[public,{keypos, #cacheItem.key},named_table])
+      , ok;
     true-> ets:delete(cache),
-      cache=ets:new(cache,[public,{keypos, #cacheItem.key},named_table])
+      cache=ets:new(cache,[public,{keypos, #cacheItem.key},named_table]),
+      ok
   end.
 
 
 insert(K, V, T) ->
-  ets:insert(cache, #cacheItem{key=K,value = V,lives_to = get_timestamp()+T}).
+  ets:insert(cache, #cacheItem{key=K,value = V,lives_to = get_timestamp()+T}),
+  ok.
 
 lookup(K)  ->
   Ex=ets:member(cache,K),
@@ -29,7 +32,7 @@ lookup(K)  ->
       [Item|_T]=ets:lookup(cache,K),
       Is_alive=Item#cacheItem.lives_to>get_timestamp(),
       if
-        Is_alive  -> Item#cacheItem.value;
+        Is_alive  -> {ok,Item#cacheItem.value};
         true -> []
       end;
     true -> []
@@ -37,16 +40,17 @@ lookup(K)  ->
 
 delete_obsolete() ->
   T_now=get_timestamp(),
-  ets:select_delete(cache, ets:fun2ms(fun(#cacheItem{lives_to = T})->  T < T_now  end)).
+  ets:select_delete(cache, ets:fun2ms(fun(#cacheItem{lives_to = T})->  T < T_now  end))
+  ,ok.
 
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 create_insert_test_()->[
   ?_assertException(error,badarg,insert(1,"hkjhkjdshfkh",10)),
-  ?_assert(create()=:=cache),
-  ?_assert(insert(1,"hkjhkjdshfkh",10)=:=true),
-  ?_assert(insert(1,"hkjhkjdshfkh",30)=:=true)].
+  ?_assert(create()=:=ok),
+  ?_assert(insert(1,"hkjhkjdshfkh",10)=:=ok),
+  ?_assert(insert(1,"hkjhkjdshfkh",30)=:=ok)].
 
 delete_test_()->
   fun()->
@@ -56,8 +60,8 @@ delete_test_()->
   timer:sleep(2000),
   [
   ?_assert(lookup(1)=:=[]),
-  ?_assert(lookup(2)=:="hkjhkjdshfkh"),
-  ?_assert(delete_obsolete()=:=1)] end.
+  ?_assert(lookup(2)=:={ok,"hkjhkjdshfkh"}),
+  ?_assert(delete_obsolete()=:=ok)] end.
 
 insert_many_test_()->
   fun()->
